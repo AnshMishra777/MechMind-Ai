@@ -1,13 +1,16 @@
+
+from datetime import datetime, timezone
 from pathlib import Path
 
 import joblib
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-import json
-app=FastAPI(title='MechMind AI API')
+from backend.database import predictions_collection
+
+app = FastAPI(title="MechMind AI API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,8 +19,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-    
-    
+
 MODEL_PATH = (
     Path(__file__).resolve().parents[2]
     / "ml"
@@ -25,8 +27,8 @@ MODEL_PATH = (
     / "mechmind_model.joblib"
 )
 
-
 model = joblib.load(MODEL_PATH)
+
 
 class MachineData(BaseModel):
     Type: str = Field(pattern="^[LMH]$")
@@ -35,14 +37,15 @@ class MachineData(BaseModel):
     rotational_speed: float = Field(gt=0)
     torque: float = Field(ge=0)
     tool_wear: float = Field(ge=0)
-    
-    
-@app.get('/')
-def home():
-    return {"Message":"MechMind AI API is running"}
 
-@app.post('/predict')
-def predict(data:MachineData):
+
+@app.get("/")
+def home():
+    return {"message": "MechMind AI API is running"}
+
+
+@app.post("/predict")
+def predict(data: MachineData):
     try:
         features = pd.DataFrame([{
             "Type": data.Type,
@@ -56,7 +59,7 @@ def predict(data:MachineData):
         prediction = int(model.predict(features)[0])
         probability = float(model.predict_proba(features)[0][1])
 
-        return {
+        result = {
             "failure_prediction": prediction,
             "failure_probability": round(probability, 4),
             "status": (
@@ -66,8 +69,50 @@ def predict(data:MachineData):
             ),
         }
 
+        # Save sensor readings and prediction to MongoDB
+        record = {
+            "Type": data.Type,
+            "air_temperature": data.air_temperature,
+            "process_temperature": data.process_temperature,
+            "rotational_speed": data.rotational_speed,
+            "torque": data.torque,
+            "tool_wear": data.tool_wear,
+            **result,
+            "created_at": datetime.now(timezone.utc),
+        }
+
+        predictions_collection.insert_one(record)
+
+        return result
+
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail="Prediction failed. Check the model features and API logs.",
+            detail="Prediction or database save failed. Check the backend logs.",
+        ) from exc
+
+
+@app.get("/predictions")
+def get_predictions(limit: int = Query(default=20, ge=1, le=100)):
+    try:
+        records = predictions_collection.find().sort(
+            "created_at", -1
+        ).limit(limit)
+
+        history = []
+
+        for record in records:
+            record["_id"] = str(record["_id"])
+            record["created_at"] = record["created_at"].isoformat()
+            history.append(record)
+
+        return {
+            "total": predictions_collection.count_documents({}),
+            "predictions": history,
+        }
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve prediction history.",
         ) from exc
