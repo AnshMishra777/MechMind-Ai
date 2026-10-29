@@ -7,6 +7,10 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from bson import ObjectId
+from bson.errors import InvalidId
+
+
 
 from backend.database import predictions_collection
 
@@ -115,4 +119,42 @@ def get_predictions(limit: int = Query(default=20, ge=1, le=100)):
         raise HTTPException(
             status_code=500,
             detail="Unable to retrieve prediction history.",
+        ) from exc
+
+
+@app.delete("/predictions/{prediction_id}")
+def delete_prediction(prediction_id: str):
+    try:
+        object_id = ObjectId(prediction_id)
+    except InvalidId:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid prediction ID"
+        )
+
+    result = predictions_collection.delete_one(
+        {"_id": object_id}
+    )
+
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Prediction not found"
+        )
+
+    return {"message": "Prediction deleted successfully"}
+
+
+@app.delete("/predictions")
+def clear_prediction_history():
+    try:
+        result = predictions_collection.delete_many({})
+        return {
+            "message": "Prediction history cleared successfully",
+            "deleted_count": result.deleted_count
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to clear prediction history."
         ) from exc

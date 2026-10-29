@@ -23,4 +23,15 @@ export const getPredictionHistory = async (limit = 20) => {
   return response.data;
 };
 
+export const deletePrediction = async (predictionId) => {
+  const response = await api.delete(`/predictions/${predictionId}`);
+  return response.data;
+};
+
+export const clearPredictionHistory = async () => {
+  const response = await api.delete("/predictions");
+  return response.data;
+};
+
+
 export default api;
