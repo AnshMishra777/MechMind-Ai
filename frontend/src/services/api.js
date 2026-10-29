@@ -34,4 +34,10 @@ export const clearPredictionHistory = async () => {
 };
 
 
+export const getSystemHealth = async () => {
+  const response = await api.get("/health");
+  return response.data;
+};
+
+
 export default api;

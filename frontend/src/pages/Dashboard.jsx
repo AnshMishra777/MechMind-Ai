@@ -1,11 +1,13 @@
-
+// To start the server first activate env than type = python -m uvicorn backend.api.main:app --reload
 import { useCallback, useEffect, useState } from "react";
 import {
   getPredictionHistory,
   deletePrediction,
   clearPredictionHistory,
+  getSystemHealth,
 } from "../services/api";
 
+import DashboardCharts from "../components/DashboardCharts";
 
 export default function Dashboard() {
   const [history, setHistory] = useState([]);
@@ -13,6 +15,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [systemHealth, setSystemHealth] = useState(null);
+  const [healthError, setHealthError] = useState(false);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -31,6 +35,27 @@ export default function Dashboard() {
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+
+
+  const loadSystemHealth = useCallback(async () => {
+    try {
+      const data = await getSystemHealth();
+      setSystemHealth(data);
+      setHealthError(false);
+    } catch (err) {
+      setSystemHealth(null);
+      setHealthError(true);
+    }
+  }, []);
+    useEffect(() => {
+    loadSystemHealth();
+
+    const intervalId = setInterval(loadSystemHealth, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [loadSystemHealth]);
+
 
   const handleDelete = async (predictionId) => {
     const confirmed = window.confirm(
@@ -126,6 +151,99 @@ export default function Dashboard() {
             </div>
           ))}
         </section>
+        <DashboardCharts history={history} />
+<section className="mt-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
+  <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 className="text-xl font-semibold">System Health</h2>
+      <p className="mt-1 text-sm text-slate-400">
+        Live status of your application services
+      </p>
+    </div>
+
+    <button
+      onClick={loadSystemHealth}
+      className="rounded-lg border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800"
+    >
+      Check Again
+    </button>
+  </div>
+
+  <div className="grid gap-4 md:grid-cols-3">
+    {[
+      {
+        label: "FastAPI Backend",
+        key: "api",
+        healthyValue: "online",
+      },
+      {
+        label: "ML Model",
+        key: "model",
+        healthyValue: "loaded",
+      },
+      {
+        label: "MongoDB",
+        key: "database",
+        healthyValue: "connected",
+      },
+    ].map((service) => {
+      const value = systemHealth?.[service.key];
+      const isHealthy = value === service.healthyValue;
+      const isUnavailable = healthError || !systemHealth;
+
+      return (
+        <div
+          key={service.key}
+          className="rounded-xl border border-slate-800 bg-slate-950 p-4"
+        >
+          <p className="text-sm text-slate-400">{service.label}</p>
+
+          <div className="mt-3 flex items-center gap-2">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                isUnavailable
+                  ? "bg-red-500"
+                  : isHealthy
+                    ? "bg-emerald-500"
+                    : "bg-amber-500"
+              }`}
+            />
+
+            <span
+              className={`text-sm font-semibold ${
+                isUnavailable
+                  ? "text-red-400"
+                  : isHealthy
+                    ? "text-emerald-400"
+                    : "text-amber-400"
+              }`}
+            >
+              {isUnavailable
+                ? "Unavailable"
+                : value.charAt(0).toUpperCase() + value.slice(1)}
+            </span>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+
+  {systemHealth && (
+       <p className="mt-4 text-sm text-slate-400">
+          Overall status:{" "}
+          <span
+            className={
+            systemHealth.status === "healthy"
+            ? "font-semibold text-emerald-400"
+            : "font-semibold text-amber-400"
+            }
+          >
+          {systemHealth.status.toUpperCase()}
+          </span>
+        </p>
+        )}
+      </section>
+
 
         <section className="mt-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">

@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
+from backend.database import client, predictions_collection
 import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
@@ -158,3 +159,27 @@ def clear_prediction_history():
             status_code=500,
             detail="Unable to clear prediction history."
         ) from exc
+        
+        
+@app.get("/health")
+def health_check():
+    model_status = "loaded" if model is not None else "not_loaded"
+
+    try:
+        client.admin.command("ping")
+        database_status = "connected"
+    except Exception:
+        database_status = "disconnected"
+
+    overall_status = (
+        "healthy"
+        if model_status == "loaded" and database_status == "connected"
+        else "degraded"
+    )
+
+    return {
+        "status": overall_status,
+        "api": "online",
+        "model": model_status,
+        "database": database_status,
+    }
