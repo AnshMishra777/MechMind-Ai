@@ -39,5 +39,12 @@ export const getSystemHealth = async () => {
   return response.data;
 };
 
+// Ask the RAG-powered maintenance assistant
+export const askMaintenanceAssistant = async (question) => {
+  const response = await api.post("/assistant/ask", {
+    question,
+  });
 
+  return response.data;
+};
 export default api;

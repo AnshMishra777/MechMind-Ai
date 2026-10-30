@@ -11,8 +11,7 @@ from pydantic import BaseModel, Field
 from bson import ObjectId
 from bson.errors import InvalidId
 
-
-
+from backend.genai.rag import ask_maintenance_assistant
 from backend.database import predictions_collection
 
 app = FastAPI(title="MechMind AI API")
@@ -43,11 +42,42 @@ class MachineData(BaseModel):
     torque: float = Field(ge=0)
     tool_wear: float = Field(ge=0)
 
-
+class AssistantQuestion(BaseModel):
+    question: str = Field(min_length=3, max_length=2000)
+    
+    
 @app.get("/")
 def home():
     return {"message": "MechMind AI API is running"}
 
+@app.post("/assistant/ask")
+def ask_assistant(data: AssistantQuestion):
+    question = data.question.strip()
+
+    if not question:
+        raise HTTPException(
+            status_code=400,
+            detail="Question cannot be empty."
+        )
+
+    try:
+        result = ask_maintenance_assistant(question)
+
+        return {
+            "question": question,
+            "answer": result["answer"],
+            "sources": result["sources"]
+        }
+
+    except Exception as exc:
+        print(f"Assistant error: {exc}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to generate an answer. Check backend logs."
+        ) from exc
+        
+        
 
 @app.post("/predict")
 def predict(data: MachineData):
