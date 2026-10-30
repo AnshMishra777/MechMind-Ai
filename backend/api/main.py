@@ -1,4 +1,4 @@
-
+# To start backend = uvicorn backend.api.main:app --reload
 from datetime import datetime, timezone
 from pathlib import Path
 
