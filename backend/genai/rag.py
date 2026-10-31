@@ -48,13 +48,31 @@ llm = ChatGroq(
 )
 
 
-def ask_maintenance_assistant(question: str):
+def ask_maintenance_assistant(
+    question: str,
+    machine_context: dict | None = None
+):
+    # Prepare machine information
+    machine_information = ""
+
+    if machine_context:
+        machine_information = "\n".join(
+            f"{key}: {value}"
+            for key, value in machine_context.items()
+        )
+
+    # Include machine context in the retrieval query
+    retrieval_query = question
+
+    if machine_information:
+        retrieval_query += "\nMachine information:\n" + machine_information
+
     # Retrieve relevant document chunks
     retriever = vector_store.as_retriever(
         search_kwargs={"k": 4}
     )
 
-    retrieved_docs = retriever.invoke(question)
+    retrieved_docs = retriever.invoke(retrieval_query)
 
     if not retrieved_docs:
         return {
@@ -63,7 +81,7 @@ def ask_maintenance_assistant(question: str):
         }
 
     # Prepare context from retrieved chunks
-    context = "\n\n".join(
+    document_context = "\n\n".join(
         [
             f"Source: {doc.metadata.get('source', 'Unknown')}\n"
             f"Page: {doc.metadata.get('page', 'Unknown')}\n"
@@ -73,26 +91,40 @@ def ask_maintenance_assistant(question: str):
     )
 
     prompt = f"""
-You are MechMind AI, an industrial maintenance troubleshooting assistant.
+You are MechMind AI, an industrial predictive maintenance assistant.
 
-Answer the user's question using ONLY the provided maintenance document context.
+Your task is to explain the machine's ML prediction and provide
+maintenance guidance using the supplied information.
 
-Rules:
-1. Do not invent technical specifications, operating limits, or repair procedures.
-2. If the context does not contain enough information, clearly say so.
-3. Give clear and practical explanations.
-4. For safety-related issues, recommend following approved site procedures
-   and consulting qualified maintenance personnel.
-5. Do not claim that a predicted failure is a confirmed machine failure.
-6. Cite relevant page numbers in your answer.
+IMPORTANT RULES:
+1. Use ONLY the maintenance document context for maintenance recommendations.
+2. Treat machine readings and ML predictions as supplied data, not confirmed diagnoses.
+3. Never claim that a particular component has failed.
+4. Explain what the predicted probability means without treating it as certainty.
+5. Do not invent technical specifications, operating limits, or repair procedures.
+6. If the documents do not support a recommendation, clearly say so.
+7. Recommend following OEM instructions and approved site safety procedures.
+8. Mention relevant document page numbers.
+
+MACHINE INFORMATION:
+
+{machine_information if machine_information else "No machine information provided."}
 
 MAINTENANCE DOCUMENT CONTEXT:
 
-{context}
+{document_context}
 
 USER QUESTION:
 
 {question}
+
+Provide your response using these sections:
+
+1. Prediction Overview
+2. Interpretation of Machine Readings
+3. Relevant Maintenance Checks
+4. Recommended Next Steps
+5. Document References
 
 ANSWER:
 """

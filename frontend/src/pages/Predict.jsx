@@ -1,6 +1,9 @@
 
 import { useState } from "react";
-import { predictMachineFailure } from "../services/api";
+import {
+  predictMachineFailure,
+  analyzeMachinePrediction,
+} from "../services/api";
 
 const initialValues = {
   Type: "M",
@@ -55,6 +58,10 @@ export default function Predict() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [aiReport, setAiReport] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+
   function handleChange(event) {
     const { name, value } = event.target;
 
@@ -62,6 +69,11 @@ export default function Predict() {
       ...previous,
       [name]: value,
     }));
+
+    // Clear an old prediction when readings change
+    setResult(null);
+    setAiReport(null);
+    setAiError("");
   }
 
   async function handleSubmit(event) {
@@ -70,6 +82,8 @@ export default function Predict() {
     setLoading(true);
     setError("");
     setResult(null);
+    setAiReport(null);
+    setAiError("");
 
     try {
       const sensorData = {
@@ -82,7 +96,12 @@ export default function Predict() {
       };
 
       const prediction = await predictMachineFailure(sensorData);
-      setResult(prediction);
+
+      // Keep the exact readings used for this prediction
+      setResult({
+        ...prediction,
+        sensorData,
+      });
     } catch (err) {
       setError(
         err.response?.data?.detail ||
@@ -90,6 +109,35 @@ export default function Predict() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleGenerateReport() {
+    if (!result) return;
+
+    setAiLoading(true);
+    setAiError("");
+    setAiReport(null);
+
+    try {
+      const reportData = {
+        ...result.sensorData,
+        failure_prediction: result.failure_prediction,
+        failure_probability: result.failure_probability,
+      };
+
+      const response = await analyzeMachinePrediction(reportData);
+
+      setAiReport(response);
+    } catch (err) {
+      console.error("AI report error:", err);
+
+      setAiError(
+        err.response?.data?.detail ||
+          "Unable to generate the AI maintenance report. Please try again."
+      );
+    } finally {
+      setAiLoading(false);
     }
   }
 
@@ -171,7 +219,7 @@ export default function Predict() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || aiLoading}
               className="mt-8 w-full rounded-lg bg-cyan-500 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "Analyzing Machine..." : "Predict Machine Failure"}
@@ -220,7 +268,9 @@ export default function Predict() {
                       : "border-emerald-700 bg-emerald-950/30"
                   }`}
                 >
-                  <p className="text-sm text-slate-300">Predicted Status</p>
+                  <p className="text-sm text-slate-300">
+                    Predicted Status
+                  </p>
 
                   <p
                     className={`mt-2 text-2xl font-bold ${
@@ -262,10 +312,98 @@ export default function Predict() {
                   its estimate for the supplied readings, not a guarantee
                   of actual machine condition.
                 </p>
+
+                {/* AI Maintenance Report Button */}
+                <button
+                  type="button"
+                  onClick={handleGenerateReport}
+                  disabled={aiLoading}
+                  className="w-full rounded-lg bg-violet-600 px-5 py-3 font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {aiLoading
+                    ? "Generating AI Report..."
+                    : aiReport
+                      ? "Regenerate AI Maintenance Report"
+                      : "Generate AI Maintenance Report"}
+                </button>
+
+                {aiLoading && (
+                  <p className="animate-pulse text-center text-sm text-violet-400">
+                    MechMind AI is analyzing sensor readings and
+                    retrieving maintenance information...
+                  </p>
+                )}
+
+                {aiError && (
+                  <div
+                    role="alert"
+                    className="rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-300"
+                  >
+                    {aiError}
+                  </div>
+                )}
               </div>
             )}
           </section>
         </div>
+
+        {/* AI Maintenance Report */}
+        {aiReport && (
+          <section className="mt-8 rounded-2xl border border-violet-800/60 bg-slate-900 p-6 sm:p-8">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="rounded-xl bg-violet-500/10 p-3">
+                <span className="text-2xl">✦</span>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold text-white">
+                  AI Maintenance Analysis
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Generated using your machine readings and maintenance
+                  knowledge base.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
+              <div className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-200">
+                {aiReport.answer}
+              </div>
+            </div>
+
+            {aiReport.sources?.length > 0 && (
+              <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950 p-5">
+                <h3 className="mb-3 font-semibold text-violet-300">
+                  Knowledge Sources
+                </h3>
+
+                <div className="space-y-2">
+                  {aiReport.sources.map((source, index) => (
+                    <div
+                      key={`${source.document}-${source.page}-${index}`}
+                      className="flex flex-wrap items-center gap-2 text-sm text-slate-400"
+                    >
+                      <span>📄</span>
+                      <span>{source.document}</span>
+                      <span className="rounded-md bg-slate-800 px-2 py-1 text-xs text-slate-300">
+                        Page {source.page}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="mt-5 text-xs leading-5 text-slate-500">
+              AI-generated recommendations are based on retrieved
+              educational maintenance documentation. Verify all findings
+              against OEM instructions and approved site safety procedures.
+              The ML prediction is not a confirmed machine fault.
+            </p>
+          </section>
+        )}
       </div>
     </main>
   );

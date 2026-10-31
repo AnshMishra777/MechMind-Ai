@@ -8,6 +8,15 @@ const api = axios.create({
   },
 });
 
+export const analyzeMachinePrediction = async (data) => {
+  const response = await api.post(
+    "/assistant/analyze-prediction",
+    data
+  );
+
+  return response.data;
+};
+
 // Send sensor readings to the ML prediction endpoint
 export const predictMachineFailure = async (sensorData) => {
   const response = await api.post("/predict", sensorData);

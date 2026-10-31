@@ -45,6 +45,17 @@ class MachineData(BaseModel):
 class AssistantQuestion(BaseModel):
     question: str = Field(min_length=3, max_length=2000)
     
+class MachineAnalysisRequest(BaseModel):
+    Type: str = Field(pattern="^[LMH]$")
+    air_temperature: float = Field(gt=0)
+    process_temperature: float = Field(gt=0)
+    rotational_speed: float = Field(gt=0)
+    torque: float = Field(ge=0)
+    tool_wear: float = Field(ge=0)
+
+    failure_prediction: int = Field(ge=0, le=1)
+    failure_probability: float = Field(ge=0, le=1)
+    
     
 @app.get("/")
 def home():
@@ -77,7 +88,50 @@ def ask_assistant(data: AssistantQuestion):
             detail="Unable to generate an answer. Check backend logs."
         ) from exc
         
-        
+@app.post("/assistant/analyze-prediction")
+def analyze_prediction(data: MachineAnalysisRequest):
+    try:
+        machine_context = {
+            "Machine Type": data.Type,
+            "Air Temperature": f"{data.air_temperature} K",
+            "Process Temperature": f"{data.process_temperature} K",
+            "Rotational Speed": f"{data.rotational_speed} rpm",
+            "Torque": f"{data.torque} Nm",
+            "Tool Wear": f"{data.tool_wear} min",
+            "Failure Prediction": (
+                "Failure predicted"
+                if data.failure_prediction == 1
+                else "No failure predicted"
+            ),
+            "Failure Probability": (
+                f"{data.failure_probability * 100:.2f}%"
+            )
+        }
+
+        question = (
+            "Analyze this machine's predicted failure risk. "
+            "Explain the prediction and provide relevant "
+            "document-backed maintenance checks."
+        )
+
+        result = ask_maintenance_assistant(
+            question,
+            machine_context
+        )
+
+        return {
+            "machine_context": machine_context,
+            "answer": result["answer"],
+            "sources": result["sources"]
+        }
+
+    except Exception as exc:
+        print(f"Machine analysis error: {exc}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to analyze machine prediction."
+        ) from exc        
 
 @app.post("/predict")
 def predict(data: MachineData):
