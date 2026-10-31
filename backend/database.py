@@ -1,7 +1,17 @@
+import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 from pymongo import MongoClient
 
-MONGO_URI = "mongodb://localhost:27017/"
+BASE_DIR = Path(__file__).resolve().parents[1]
+
+load_dotenv(BASE_DIR / ".env")
+
+MONGO_URI = os.getenv("MONGO_URI")
+
+if not MONGO_URI:
+    raise RuntimeError("MONGO_URI is missing from environment variables.")
 
 client = MongoClient(
     MONGO_URI,

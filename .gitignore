@@ -1,9 +1,10 @@
-
 # Python
 .venv/
+venv/
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
+.pytest_cache/
 
 # Secrets
 .env
@@ -14,5 +15,15 @@ __pycache__/
 node_modules/
 dist/
 
+# ChromaDB
+backend/genai/chroma_db/
+
+# Model artifacts - keep the trained model for deployment
+# Do not ignore ml/artifacts/
+
 # Editor
 .vscode/
+
+# OS
+.DS_Store
+Thumbs.db
