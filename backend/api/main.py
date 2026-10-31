@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from bson import ObjectId
 from bson.errors import InvalidId
 
-from backend.genai.rag import ask_maintenance_assistant
+
 from backend.database import predictions_collection
 
 app = FastAPI(title="MechMind AI API")
@@ -72,6 +72,9 @@ def ask_assistant(data: AssistantQuestion):
         )
 
     try:
+        # Load RAG only when this endpoint is called
+        from backend.genai.rag import ask_maintenance_assistant
+
         result = ask_maintenance_assistant(question)
 
         return {
@@ -91,6 +94,8 @@ def ask_assistant(data: AssistantQuestion):
 @app.post("/assistant/analyze-prediction")
 def analyze_prediction(data: MachineAnalysisRequest):
     try:
+        from backend.genai.rag import ask_maintenance_assistant
+
         machine_context = {
             "Machine Type": data.Type,
             "Air Temperature": f"{data.air_temperature} K",
@@ -131,8 +136,9 @@ def analyze_prediction(data: MachineAnalysisRequest):
         raise HTTPException(
             status_code=500,
             detail="Unable to analyze machine prediction."
-        ) from exc        
-
+        ) from exc
+        
+        
 @app.post("/predict")
 def predict(data: MachineData):
     try:
