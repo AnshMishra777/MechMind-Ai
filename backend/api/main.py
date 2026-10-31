@@ -258,8 +258,16 @@ def health_check():
     try:
         client.admin.command("ping")
         database_status = "connected"
-    except Exception:
+
+    except Exception as exc:
         database_status = "disconnected"
+
+        # Print the actual MongoDB error in Render logs
+        print(
+            f"MongoDB connection error: "
+            f"{type(exc).__name__}: {exc}",
+            flush=True
+        )
 
     overall_status = (
         "healthy"
