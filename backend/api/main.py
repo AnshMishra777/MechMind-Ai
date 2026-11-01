@@ -21,6 +21,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "https://mech-mind-ai.vercel.app",
+        "https://mech-mind-4p3suu0gl-fit-forge-s-projects.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
